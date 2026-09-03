@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+dist/
+build/
+
+# Logs and outputs
+logs/
+abliterated_models/
+checkpoints/
+*.log
+
+# Configuration with secrets
+config.yaml
+!config.example.yaml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Temporary files
+/tmp/
+*.tmp
+*.gguf
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# WandB
+wandb/
