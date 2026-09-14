@@ -517,6 +517,58 @@ def model_out_dir(output_root: str, model_id: str, subdir: str = "") -> Path:
 # Engine CLI construction  (the part that must match real heretic exactly)
 # --------------------------------------------------------------------------- #
 
+def _engine_argv(engine_cmd: str, platform: Optional[str] = None) -> list:
+    """Return an executable argv prefix that works on Windows too.
+
+    Windows may resolve a Python console entry point as a ``.PY`` file via
+    PATHEXT.  ``subprocess.run`` cannot execute that file directly; it must be
+    passed to the active interpreter.
+    """
+    platform = platform or os.name
+    suffix = Path(str(engine_cmd)).suffix.lower()
+    if platform == "nt" and suffix in {".py", ".pyw"}:
+        # The engine subprocess runs with cwd set to the model output
+        # directory, so a relative launcher path would no longer resolve.
+        return [sys.executable, os.path.abspath(str(engine_cmd))]
+    return [str(engine_cmd)]
+
+
+def _is_this_wrapper(path: str) -> bool:
+    """Return whether a resolved command path points at this wrapper."""
+    try:
+        return Path(path).resolve().samefile(Path(__file__).resolve())
+    except (FileNotFoundError, OSError):
+        return False
+
+
+def _find_engine_command() -> str:
+    """Find the installed heretic-llm launcher without shadowing this file."""
+    configured = os.environ.get("HERETIC_ENGINE")
+    if configured:
+        return configured
+
+    # On Windows, the current directory is searched before PATH. Since this
+    # wrapper is named heretic.py, `which("heretic")` can resolve back to the
+    # wrapper itself. Prefer the active venv's Scripts directory first.
+    if os.name == "nt":
+        scripts_dir = Path(sys.prefix) / "Scripts"
+        for name in ("heretic.exe", "heretic-script.py", "heretic.py"):
+            candidate = scripts_dir / name
+            if candidate.is_file() and not _is_this_wrapper(str(candidate)):
+                return str(candidate)
+
+    found = shutil.which("heretic")
+    if found and not _is_this_wrapper(found):
+        return found
+    if found:
+        raise ConfigError(
+            "the 'heretic' command resolves to this wrapper (heretic.py), "
+            "not the installed heretic-llm launcher; reinstall heretic-llm "
+            "in the active virtual environment or set HERETIC_ENGINE"
+        )
+    return "heretic"
+
+
 def build_heretic_command(cfg: Config,
                           model: str,
                           logger: logging.Logger) -> list:
@@ -531,9 +583,9 @@ def build_heretic_command(cfg: Config,
     a = cfg.abliteration
     if not model:
         raise ConfigError("no model configured (set abliteration.model or pass --model)")
-    engine_cmd = os.environ.get("HERETIC_ENGINE") or shutil.which("heretic") or "heretic"
+    engine_cmd = _find_engine_command()
 
-    cmd: list = [engine_cmd]
+    cmd: list = _engine_argv(engine_cmd)
     cmd += ["--n-trials", str(int(a.n_trials))]
 
     if a.quantization not in QUANTIZATION_VALUES:
@@ -616,9 +668,16 @@ class AbliterationEngine:
                              " ".join(cmd), out_dir)
             t0 = time.time()
             try:
+                child_env = os.environ.copy()
+                if os.name == "nt":
+                    # Rich emits Unicode progress characters. Windows
+                    # console defaults such as cp1252 cannot encode them.
+                    child_env["PYTHONUTF8"] = "1"
+                    child_env["PYTHONIOENCODING"] = "utf-8"
                 proc = subprocess.run(
                     cmd,
                     cwd=str(out_dir),
+                    env=child_env,
                     capture_output=True,
                     text=True,
                     encoding="utf-8",

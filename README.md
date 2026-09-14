@@ -29,6 +29,15 @@ python heretic.py --config config.yaml
 The dry run prints the exact `heretic` command without running the model. Outputs
 and logs are written below the configured `output_root`.
 
+On Windows PowerShell, create and activate the environment with:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r .\requirements.txt
+python .\heretic.py --config .\config.yaml --model Qwen/Qwen2.5-0.5B-Instruct --workers 1 --no-benchmarks
+```
+
 For a CPU-only run, remove `device_map: auto` from both the `abliteration` and
 `hardware` sections in `config.yaml`. Use environment variables for notification
 and Hugging Face credentials; do not commit `config.yaml`.
