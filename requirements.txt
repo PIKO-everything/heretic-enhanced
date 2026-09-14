@@ -1,5 +1,5 @@
 # Core abliteration library
-heretic-llm>=0.2.0
+heretic-llm>=1.4.0
 
 # Configuration and utilities
 pyyaml>=6.0

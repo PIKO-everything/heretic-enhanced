@@ -185,7 +185,52 @@ class Config:
             valid = {f.name for f in dataclasses.fields(dcls)}
             for k, v in data.items():
                 if k not in valid:
+                    # Keep accepting the old flat notification names while
+                    # mapping them to the current nested representation.
+                    if section == "notification" and k == "webhook_url":
+                        obj.discord.url = v
+                        continue
+                    if section == "notification" and k == "slack_webhook":
+                        obj.slack.url = v
+                        continue
                     logger.warning("config: unknown key '%s.%s' ignored", section, k)
+                    continue
+                if section == "notification" and k == "email" and isinstance(v, dict):
+                    child = EmailConfig()
+                    child_valid = {f.name for f in dataclasses.fields(EmailConfig)}
+                    for child_key, child_value in v.items():
+                        if child_key == "enabled":
+                            logger.warning(
+                                "config: unknown key 'notification.email.enabled' ignored"
+                            )
+                            continue
+                        if child_key == "to_addr":
+                            child_key = "to_addrs"
+                            child_value = [child_value] if child_value else []
+                        if child_key not in child_valid:
+                            logger.warning(
+                                "config: unknown key 'notification.email.%s' ignored",
+                                child_key,
+                            )
+                            continue
+                        setattr(child, child_key, child_value)
+                    if isinstance(child.to_addrs, str):
+                        child.to_addrs = [child.to_addrs]
+                    obj.email = child
+                    continue
+                if section == "notification" and k in ("discord", "slack") and isinstance(v, dict):
+                    child = WebhookConfig()
+                    child_valid = {f.name for f in dataclasses.fields(WebhookConfig)}
+                    for child_key, child_value in v.items():
+                        if child_key not in child_valid:
+                            logger.warning(
+                                "config: unknown key 'notification.%s.%s' ignored",
+                                k,
+                                child_key,
+                            )
+                            continue
+                        setattr(child, child_key, child_value)
+                    setattr(obj, k, child)
                     continue
                 setattr(obj, k, v)
             setattr(cfg, section, obj)
@@ -370,7 +415,7 @@ def _unresolved_in(value: Any) -> list:
 
 EXAMPLE_CONFIG_YAML = """\
 # Heretic Enhanced v5 - generated starter config
-# Real heretic-llm 1.4.0 settings only. Run:  python heretic_final.py -c config.yaml
+# Real heretic-llm 1.4.0 settings only. Run:  python heretic.py -c config.yaml
 abliteration:
   model: Qwen/Qwen3-4B-Instruct-2507   # HF id or local dir; REQUIRED to run
   n_trials: 150
@@ -433,7 +478,7 @@ def load_config(path: str, logger: logging.Logger) -> Config:
     if not p.is_file():
         raise ConfigError(
             f"config file not found: {path}\n"
-            f"Generate one with: python heretic_final.py --write-config config.yaml"
+            f"Generate one with: python heretic.py --write-config config.yaml"
         )
     try:
         raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
@@ -1000,6 +1045,7 @@ def _append_text(path: Path, text: str) -> None:
 
 def _record_result_json(out_dir: Path, result: dict) -> None:
     try:
+        out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "result.json").write_text(
             json.dumps(result, indent=2, default=str), encoding="utf-8")
     except OSError as exc:
@@ -1211,7 +1257,7 @@ def dump_results_json(results: list, config: Config) -> None:
 
 def _parse_args(argv: Optional[list] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        prog="heretic_final.py",
+        prog="heretic.py",
         description="Heretic Enhanced v5 - config-driven wrapper for the real "
                     "heretic-llm 1.4.0 CLI.",
     )

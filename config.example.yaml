@@ -1,71 +1,61 @@
-# Example configuration for Heretic Enhanced.
+# Example configuration for Heretic Enhanced v5.
 # Copy this file to config.yaml and adjust values to your needs.
-# Never commit real secrets – use environment variables instead.
+# Never commit real secrets; use environment variables instead.
 
 abliteration:
-  # Hugging Face model ID or local path
   model: Qwen/Qwen3-4B-Instruct-2507
-  # Output directory for abliterated models
-  output_dir: ./abliterated_models
-  checkpoint_dir: ./checkpoints
-  log_dir: ./logs
-  # Quantization: "bnb_4bit", "bnb_8bit", or null (none)
-  quantization: bnb_4bit
-  # Run non‑interactively with automatic parameter selection
-  auto_select: true
-  # Number of Optuna optimization trials
-  optimization_trials: 150
-  # Target maximum refusals (out of 100)
-  max_refusals: 3
-  # Early stopping if no improvement for `patience` trials
-  early_stopping: true
-  patience: 10
-  # Retry attempts for transient failures
-  retry_attempts: 3
-  retry_delay: 5.0
-
-benchmark:
-  run_perplexity: true
-  run_mmlu: true
-  mmlu_tasks: ["mmlu"]
-  # Path to a file with refusal prompts (one per line)
-  refusal_prompts_file: ./harmful_prompts.txt
-  num_refusal_samples: 100
-  kl_divergence: true
+  n_trials: 150
+  quantization: none                 # none | bnb_4bit
+  export_strategy: merge
+  device_map: auto                   # remove for CPU-only runs
+  # max_shard_size: 4GB
+  # batch_size: 8
+  # max_batch_size: 16
+  attempts: 1
+  timeout_minutes: 180
 
 hardware:
-  device: cuda                     # cuda, mps, or cpu
-  multi_gpu: false
-  vram_limit_gb: 20.0              # optional; if not set, auto‑detected
-  use_amp: true                    # automatic mixed precision
-  num_workers: 4                   # parallel batch processing
-  batch_size_autotune: true
+  device_map: auto
+  num_workers: 1
+  vram_gb: 0.0
+  batch_size_autotune: false
+
+benchmark:
+  enabled: true
+  tasks: ["mmlu", "truthfulqa_mc2"]
+  limit: null
 
 pipeline:
-  convert_to_gguf: true             # requires llama-cpp-python
-  ollama_import: true               # requires Ollama installed locally
-  upload_to_hf: true                # requires huggingface_hub
-  hf_repo_id: my-org/abliterated-model
-  hf_private: false
-  generate_model_card: true
+  convert_to_gguf: false              # requires llama.cpp conversion tools
+  ollama_import: false                # requires Ollama installed locally
+  upload_to_hf: false                # requires huggingface-cli and HF_TOKEN
+  hf_repo_id: null
+  abort_on_error: true
 
 notification:
-  enable: true
-  webhook_url: https://discord.com/api/webhooks/...
-  slack_webhook: https://hooks.slack.com/services/...
+  enable: false
   email:
-    enabled: false                  # set to true to enable
-    smtp_server: smtp.gmail.com
+    smtp_server: ${SMTP_SERVER}
     smtp_port: 587
-    username: your_email@gmail.com
-    password: your_app_password     # use an app password
-    from_addr: your_email@gmail.com
-    to_addr: admin@example.com
+    username: ${EMAIL_USER}
+    password: ${EMAIL_PASS}
+    from_addr: ${EMAIL_FROM}
+    to_addrs: ["${EMAIL_TO}"]
     use_tls: true
+    notify_on: all
+  discord:
+    url: ${DISCORD_WEBHOOK}
+    notify_on: all
+  slack:
+    url: ${SLACK_WEBHOOK}
+    notify_on: all
 
 wandb:
-  project: heretic-production
-  entity: my-team
+  enabled: false
+  project: null
+  entity: null
 
-resume: false                       # resume from last checkpoint
-dry_run: false                      # just print config and exit
+output_root: output
+resume: false
+dry_run: false
+log_level: INFO

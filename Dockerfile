@@ -11,10 +11,10 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Copy the script and default config
 WORKDIR /app
-COPY heretic_v3.py .
+COPY heretic.py .
 COPY config.example.yaml /app/config.example.yaml
 # Users can mount their own config.yaml at runtime
 
 # Entry point
-ENTRYPOINT ["python", "heretic_v3.py"]
+ENTRYPOINT ["python", "heretic.py"]
 CMD ["--config", "config.yaml"]
